@@ -1,28 +1,44 @@
+import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../src/app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import serverlessExpress from '@vendia/serverless-express';
+import { ExpressAdapter } from '@nestjs/platform-express';
+import express from 'express';
 
-let cachedServer: any;
+// Create the express instance outside the handler to take advantage of caching
+const server = express();
 
-export default async (req: any, res: any) => {
-  if (!cachedServer) {
-    const app = await NestFactory.create(AppModule);
-    app.setGlobalPrefix('api');
-    app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
-    app.enableCors({ origin: '*' });
+export const setupApp = async (expressInstance) => {
+  const app = await NestFactory.create(
+    AppModule,
+    new ExpressAdapter(expressInstance),
+  );
 
-    const config = new DocumentBuilder()
-      .setTitle('Air Quality Monitoring API')
-      .setVersion('1.0.0')
-      .build();
-    const document = SwaggerModule.createDocument(app, config);
-    SwaggerModule.setup('api/docs', app, document);
+  app.setGlobalPrefix('api');
+  app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
+  app.enableCors({ origin: '*' });
 
-    await app.init();
-    const expressApp = app.getHttpAdapter().getInstance();
-    cachedServer = serverlessExpress({ app: expressApp });
-  }
-  return cachedServer(req, res);
+  const config = new DocumentBuilder()
+    .setTitle('Air Quality Monitoring API')
+    .setVersion('1.0.0')
+    .build();
+  const document = SwaggerModule.createDocument(app, config);
+  
+  // Use CDN links for Swagger assets to prevent 404s on Vercel
+  SwaggerModule.setup('api/docs', app, document, {
+    customCssUrl: 'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.15.5/swagger-ui.min.css',
+    customJs: [
+      'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.15.5/swagger-ui-bundle.js',
+      'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.15.5/swagger-ui-standalone-preset.js',
+    ],
+  });
+
+  await app.init();
+};
+
+// Vercel handler
+export default async (req, res) => {
+  await setupApp(server);
+  server(req, res);
 };
