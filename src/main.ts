@@ -5,7 +5,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 
 export async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  
+
   app.setGlobalPrefix('api');
   app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
   app.enableCors({ origin: '*' });
@@ -16,10 +16,19 @@ export async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
-
-  await app.init(); // Critical: Initialize but don't listen on a port here
-  return app.getHttpAdapter().getInstance(); // Export the underlying Express/Fastify instance
+  SwaggerModule.setup('api/docs', app, document, {
+    customSiteTitle: 'Air Quality API Docs',
+    swaggerOptions: {
+      persistAuthorization: true,
+    },
+    customCssUrl: 'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.15.5/swagger-ui.min.css',
+    customJs: [
+      'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.15.5/swagger-ui-bundle.js',
+      'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.15.5/swagger-ui-standalone-preset.js',
+    ],
+  });
+  await app.init();
+  return app.getHttpAdapter().getInstance();
 }
 
 // Only call listen if we are NOT on Vercel
